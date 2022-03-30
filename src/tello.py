@@ -22,7 +22,6 @@ class Tello:
             skd_state = "command"
             skd_state = skd_state.encode(encoding="utf-8") 
             self.log = self.trello_socket.sendto(skd_state, self.address)
-            print('connected')
         except socket.error as e:
             print("Error creating socket: %s" % e)
     
