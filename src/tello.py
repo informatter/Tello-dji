@@ -4,6 +4,7 @@ import socket
 import sys
 import time
 
+# 
 class Tello:
 
     def __init__(self):
