@@ -1,8 +1,6 @@
 
 import threading 
 import socket
-import sys
-import time
 
 # 
 class Tello:
