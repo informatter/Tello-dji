@@ -1,4 +1,5 @@
 
+from dis import Instruction
 import threading 
 import socket
 
@@ -14,6 +15,7 @@ class Tello:
         self.address = ('192.168.10.1', 8889)
         self.receiving_thread = None
         self.can_run = True
+        self.counter = 0
 
     def connect(self):
         try:
@@ -30,35 +32,47 @@ class Tello:
 
     def __receive_from_tello(self):
         count = 0
-        while True: 
+        while self.can_run: 
             try:
                 data, server = self.trello_socket.recvfrom(1518)
-                print("Trello says: %s" % data.decode(encoding="utf-8"))
+                message_from_trello = data.decode(encoding="utf-8")
+                print("Trello says: %s" % message_from_trello)
+                isBattery = message_from_trello.isnumeric()
+                if(isBattery):
+                    if(int(message_from_trello) <=15):
+                        print("Trello says: My battery is below 15%, I will start landing...")
+                        self.land()
             except Exception:
                 print ("An error occured while hearing back from Trello ):")
                 self.can_run = False
                 break
 
+    def __send_command(self,command):
+        command = command.encode(encoding="utf-8") 
+        self.trello_socket.sendto(command, self.address)
+
+
     # Terminates the connection with the Drone.
     def disconnect(self):
         self.trello_socket.close()
-
-    # Moves the drone x cm's to the left.
-    # "x" should be between 20 - 500 cm.
-    def move_left(self,x):
-        command = 'left ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.trello_socket.sendto(command, self.address)
+        self.can_run = False
     
     # Drone auto- takes off.
     def take_off(self):
         try:
             command = "takeoff"
+            # self.__send_command(self,command)
             command = command.encode(encoding="utf-8") 
-            self.log = self.log = self.trello_socket.sendto(command, self.address)
+            self.trello_socket.sendto(command, self.address)
             
         except socket.error as e:
             print("Error taking off: %s" % e)
+
+      # Lands the drone in the ground.
+    def land(self):
+        command = 'land'
+        command = command.encode(encoding="utf-8") 
+        self.log = self.trello_socket.sendto(command, self.address)
 
     # Moves the drone x cm's to the right.
     # "x" should be between 20 - 500 cm
@@ -67,52 +81,104 @@ class Tello:
         command = command.encode(encoding="utf-8") 
         self.log = self.trello_socket.sendto(command, self.address)
 
-    # Lands the drone in the ground.
-    def land(self):
-        command = 'land'
+    # Moves the drone x cm's to the left.
+    # "x" should be between 20 - 500 cm.
+    def move_left(self,x):
+        command = 'left ' + str(x)
         command = command.encode(encoding="utf-8") 
-        self.log = self.trello_socket.sendto(command, self.address)
+        self.trello_socket.sendto(command, self.address)
 
+     # Moves the drone x cm's forward.
+     # "x" should be between 20 - 500 cm.
     def move_forward(self,x):
         command = 'forward ' + str(x)
         command = command.encode(encoding="utf-8") 
         self.log = self.trello_socket.sendto(command, self.address)
-        # print("Moved forward by: %s" % x +" cm")
-        print(command)
 
     def move_back(self,x):
         command = 'back ' + str(x)
         command = command.encode(encoding="utf-8") 
         self.log = self.trello_socket.sendto(command, self.address)
 
+    def move_up(self,x):
+        command = 'up ' + str(x)
+        command = command.encode(encoding="utf-8") 
+        self.log = self.trello_socket.sendto(command, self.address)
+    
+    def move_down(self,x):
+        command = 'down ' + str(x)
+        command = command.encode(encoding="utf-8") 
+        self.log = self.trello_socket.sendto(command, self.address)
+    
+    def move_left(self,x):
+        command = 'left ' + str(x)
+        command = command.encode(encoding="utf-8") 
+        self.log = self.trello_socket.sendto(command, self.address)
+
+    def move_right(self,x):
+        command = 'right ' + str(x)
+        command = command.encode(encoding="utf-8") 
+        self.log = self.trello_socket.sendto(command, self.address)
+
+    def rotate(self,x):
+        command = 'cw ' + str(x)
+        command = command.encode(encoding="utf-8") 
+        self.log = self.trello_socket.sendto(command, self.address)
+
+    def get_life(self):
+        command = 'battery?'
+        command = command.encode(encoding="utf-8") 
+        self.log = self.trello_socket.sendto(command, self.address)
+
+    def start_video_stream(self):
+          command = 'streamon'
+          command = command.encode(encoding="utf-8") 
+          self.log = self.trello_socket.sendto(command, self.address)
+
+
     def run_test(self):
         while self.can_run: 
             try:
-                msg = input("")
-                if not msg:break  
+                intruction = input("")
+                if not input:break  
 
-                # if(msg =='W'):
-                #     self.move_forward(80)
-                # if(msg == 'S'):
-                #     self.move_back(50)
-                # if(msg == 'T'):
-                #     self.take_off()
-                # if(msg == 'L'):
-                #     self.land()
+                if(intruction =='W'):
+                    self.move_forward(80)
+                if(intruction == 'S'):
+                    self.move_back(80)
+                if(intruction == 'T'):
+                    self.take_off()
+                if(intruction == 'L'):
+                    self.land()
+                if(intruction == 'D'):
+                    self.move_right(80)
+                if(intruction == 'A'):
+                    self.move_left(80)
+                if(intruction == 'R'):
+                    self.rotate(50)
+                if(intruction == 'H'):
+                    self.move_down(20)
+                if(intruction == 'Y'):
+                    self.move_up(20)
+                if(intruction == 'B'):
+                    self.get_life()
+                if(intruction == 'V'):
+                    self.start_video_stream()
+                
+                if(self.counter<800):
+                    self.counter+=1
 
-                if 'end' in msg:
+                if(self.counter>=800):
+                    print("Trello says: checking my health")
+                    self.get_life()
+                    self.counter =0
+
+                
+
+                if 'end' in intruction:
                     self.disconnect()
                     print ('Tello disconnected')
                     break
-
-                # Send data
-                msg = msg.encode(encoding="utf-8") 
-                sent = self.trello_socket.sendto(msg, self.address)
-                # print("Command sent to Trello: %s" % sent)
-            # except KeyboardInterrupt:
-            #     print ('\n . . .\n')
-            #     self.disconnect()   
-            #     break
             except:
                 self.disconnect() 
                 break
