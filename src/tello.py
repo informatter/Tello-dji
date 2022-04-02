@@ -13,6 +13,7 @@ class Tello:
        
         # self.port = 9000
         self.address = (TELLO_IP_ADRESS, TELLO_PORT_NUM)
+        # TODO: See if I can use a port from my mac inseatd of the same port as Tello's.
         self.client_machine = (client_machine_ip,TELLO_PORT_NUM) #(self.client_machine_ip,self.port)
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.log =''
@@ -32,8 +33,7 @@ class Tello:
                 address = address[0]
                 print('Data received from {} at client_socket'.format(address))
                 if(address!=self.address[0]): continue
-                striped_data = data.rstrip("\r\n")
-                self.tello_responses.append(striped_data)
+                self.tello_responses.append(data)
             except Exception:
                 print ("An error occured while receiving a response from Trello ):")
                 break
@@ -44,7 +44,7 @@ class Tello:
 
         # gives a waiting threshold of the next command
         # request if interval was to short.
-        if delta_time < 0.5: time.sleep(delta_time)
+        if delta_time < 0.1: time.sleep(delta_time)
 
         self.client_socket.sendto(command.encode('utf-8'), self.address)
         print("Sent {} to Trello".format(command))
@@ -73,7 +73,7 @@ class Tello:
             error_message = "Encountered an error while decoding response:{}".format(e)
             return error_message
 
-        # response = response.rstrip("\r\n")
+        response = response.rstrip("\r\n")
         print("Response from command {}: '{}'".format(command, response))
         return response
 
@@ -84,7 +84,6 @@ class Tello:
         for i in range(0, MAX_RETRY_COMMAND_COUNT):
             response = self.__try_send_control_command(command)
             lower_case_response = response.lower()
-            print("lower_case_response: {}".format(lower_case_response))
             if 'ok' in lower_case_response:
                 print("Tello says: {} after completing {}".format(lower_case_response,command))
                 return
@@ -96,9 +95,6 @@ class Tello:
 
     def connect(self):
          self.send_action_command('command')
-        #  command ='command'
-        #  command = command.encode(encoding="utf-8") 
-        #  self.log = self.client_socket.sendto(command, self.address)
 
     # Terminates the connection with the Drone.
     def disconnect(self):
@@ -124,6 +120,7 @@ class Tello:
     def move_left(self,x):
         command = 'left ' + str(x)
         self.send_action_command(command)
+
     def flip_back(self):
         command = 'flip b'
         self.send_action_command(command)
@@ -172,7 +169,7 @@ class Tello:
           self.log = self.client_socket.sendto(command, self.address)
 
 
-    def run_test(self):
+    def control_manually(self):
         while True: 
             try:
                 intruction = input("")
@@ -199,17 +196,7 @@ class Tello:
                 if(intruction == 'B'):
                     self.get_life()
                 if(intruction == 'V'):
-                    self.start_video_stream()
-                
-                if(self.counter<800):
-                    self.counter+=1
-
-                if(self.counter>=800):
-                    print("Trello says: checking my health")
-                    self.get_life()
-                    self.counter =0
-
-                
+                    self.start_video_stream()                
 
                 if 'end' in intruction:
                     self.disconnect()
