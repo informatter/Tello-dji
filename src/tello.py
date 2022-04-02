@@ -4,43 +4,26 @@ import threading
 import socket
 import time
 import logging
+from tello_constants import*
 
 
 class Tello:
 
-
-    TELLO_IP_ADRESS ='192.168.10.1'
-    TELLO_PORT_NUM = 8889
-    COMMAND_RETRY_COUNT = 10
-    RESPONSE_TIMEOUT = 7 #seconds
-    MAX_RETRY_COMMAND_COUNT = 3
-
     def __init__(self, client_machine_ip: str = ''):
        
         # self.port = 9000
-        self.address = (Tello.TELLO_IP_ADRESS, Tello.TELLO_PORT_NUM)
-        self.client_machine = (client_machine_ip,Tello.TELLO_PORT_NUM) #(self.client_machine_ip,self.port)
+        self.address = (TELLO_IP_ADRESS, TELLO_PORT_NUM)
+        self.client_machine = (client_machine_ip,TELLO_PORT_NUM) #(self.client_machine_ip,self.port)
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.log =''
-        self.receive_response_thread = None
         self.can_run = True
         self.counter = 0
         self.last_command_received_at = time.time()
         self.tello_responses =[]
-
-
-    def connect(self):
-        try:
-            self.client_socket.bind(self.client_machine)
-            skd_state = "command"
-            skd_state = skd_state.encode(encoding="utf-8") 
-            self.log = self.client_socket.sendto(skd_state, self.address)
-        except socket.error as e:
-            print("Error creating socket: %s" % e)
-    
-    def listen_to_tello(self):
         self.receive_response_thread = threading.Thread(target = self.__receive_response_from_tello)
+        self.receive_response_thread.daemon = True
         self.receive_response_thread.start()
+        self.client_socket.bind(self.client_machine)
 
     def __receive_response_from_tello(self):
         while True: 
@@ -48,20 +31,23 @@ class Tello:
                 data, address = self.client_socket.recvfrom(1518)
                 address = address[0]
                 print('Data received from {} at client_socket'.format(address))
-                if(address!=self.address): continue
-                self.tello_responses.append(data)
+                if(address!=self.address[0]): continue
+                striped_data = data.rstrip("\r\n")
+                self.tello_responses.append(striped_data)
             except Exception:
-                print ("An error occured while hearing back from Trello ):")
+                print ("An error occured while receiving a response from Trello ):")
                 break
 
     def __try_send_control_command(self, command:str) -> str:
 
         delta_time = time.time() - self.last_command_received_at
-        if delta_time < 0.1:
-            time.sleep(delta_time)
+
+        # gives a waiting threshold of the next command
+        # request if interval was to short.
+        if delta_time < 0.5: time.sleep(delta_time)
 
         self.client_socket.sendto(command.encode('utf-8'), self.address)
-
+        print("Sent {} to Trello".format(command))
         current_time = time.time()
        
         # If there are no responses, will check time out, if time
@@ -69,15 +55,16 @@ class Tello:
         while not self.tello_responses:
             # aborts command if did not receive response back from Tello
             # after response timeout
-            if time.time() - current_time > Tello.RESPONSE_TIMEOUT:
-                error_message = "Aborting command '{}'. Did not receive a response after the timeout of {} seconds".format(command, Tello.RESPONSE_TIMEOUT)
+            if time.time() - current_time > RESPONSE_TIMEOUT:
+                error_message = "Aborting command '{}'. Did not receive a response after the timeout of {} seconds".format(command, RESPONSE_TIMEOUT)
                 print( error_message)
                 return error_message
 
+            # sleeps main thread for a few ms 
+            # if response timeout is not met
             time.sleep(0.1)
 
         self.last_command_received_at = time.time()
-
         # returns latest response.
         first_response = self.tello_responses.pop(0)
         try:
@@ -86,21 +73,32 @@ class Tello:
             error_message = "Encountered an error while decoding response:{}".format(e)
             return error_message
 
-        response = response.rstrip("\r\n")
+        # response = response.rstrip("\r\n")
         print("Response from command {}: '{}'".format(command, response))
         return response
 
     # Send a command which controls the behavior of Tello
     def send_action_command(self, command:str):
+        
         response = "max retries exceeded"
-        for i in range(0, Tello.MAX_RETRY_COMMAND_COUNT): # 3 = rmax etry count
+        for i in range(0, MAX_RETRY_COMMAND_COUNT):
             response = self.__try_send_control_command(command)
-            if 'ok' in response.lower():return
+            lower_case_response = response.lower()
+            print("lower_case_response: {}".format(lower_case_response))
+            if 'ok' in lower_case_response:
+                print("Tello says: {} after completing {}".format(lower_case_response,command))
+                return
 
             print("Command attempt #{} failed for command: '{}'".format(i, command))
 
         print("Max retries for command {} have exceeded".format(command))
 
+
+    def connect(self):
+         self.send_action_command('command')
+        #  command ='command'
+        #  command = command.encode(encoding="utf-8") 
+        #  self.log = self.client_socket.sendto(command, self.address)
 
     # Terminates the connection with the Drone.
     def disconnect(self):
@@ -114,26 +112,28 @@ class Tello:
     def land(self):
         self.send_action_command('land')
 
+
     # Moves the drone x cm's to the right.
     # "x" should be between 20 - 500 cm
     def move_right(self,x):
-        command = 'left ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.log = self.client_socket.sendto(command, self.address)
+        command = 'right ' + str(x)
+        self.send_action_command(command)
 
     # Moves the drone x cm's to the left.
     # "x" should be between 20 - 500 cm.
     def move_left(self,x):
         command = 'left ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.client_socket.sendto(command, self.address)
+        self.send_action_command(command)
+    def flip_back(self):
+        command = 'flip b'
+        self.send_action_command(command)
+
 
      # Moves the drone x cm's forward.
      # "x" should be between 20 - 500 cm.
     def move_forward(self,x):
         command = 'forward ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.log = self.client_socket.sendto(command, self.address)
+        self.send_action_command(command)
 
     def move_back(self,x):
         command = 'back ' + str(x)
@@ -152,8 +152,7 @@ class Tello:
     
     def move_left(self,x):
         command = 'left ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.log = self.client_socket.sendto(command, self.address)
+        self.send_action_command(command)
 
     def move_right(self,x):
         command = 'right ' + str(x)
@@ -162,13 +161,10 @@ class Tello:
 
     def rotate(self,x):
         command = 'cw ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.log = self.client_socket.sendto(command, self.address)
+        self.send_action_command(command)
 
     def get_life(self):
-        command = 'battery?'
-        command = command.encode(encoding="utf-8") 
-        self.log = self.client_socket.sendto(command, self.address)
+        self.send_action_command('battery?')
 
     def start_video_stream(self):
           command = 'streamon'
