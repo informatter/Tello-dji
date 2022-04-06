@@ -7,14 +7,15 @@ import logging
 from tello_constants import*
 
 
+
 class Tello:
 
     def __init__(self, client_machine_ip: str = ''):
        
         # self.port = 9000
-        self.address = (TELLO_IP_ADRESS, TELLO_PORT_NUM)
+        self.address = (TELLO_IP_ADRESS, TELLO_RECEIVE_PORT_NUM)
         # TODO: See if I can use a port from my mac inseatd of the same port as Tello's.
-        self.client_machine = (client_machine_ip,TELLO_PORT_NUM) #(self.client_machine_ip,self.port)
+        self.client_machine = (client_machine_ip,TELLO_RECEIVE_PORT_NUM) #(self.client_machine_ip,self.port)
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.log =''
         self.can_run = True
@@ -22,11 +23,12 @@ class Tello:
         self.last_command_received_at = time.time()
         self.tello_responses =[]
         self.receive_response_thread = threading.Thread(target = self.__receive_response_from_tello)
+        self.receive_video_stream_thread = None
         self.receive_response_thread.daemon = True
         self.receive_response_thread.start()
         self.client_socket.bind(self.client_machine)
 
-    def __receive_response_from_tello(self):
+    def __receive_response_from_tello(self)-> None:
         while True: 
             try:
                 data, address = self.client_socket.recvfrom(1518)
@@ -44,7 +46,7 @@ class Tello:
 
         # gives a waiting threshold of the next command
         # request if interval was to short.
-        if delta_time < 0.1: time.sleep(delta_time)
+        if delta_time < COMMAND_WAITING_TIME: time.sleep(delta_time)
 
         self.client_socket.sendto(command.encode('utf-8'), self.address)
         print("Sent {} to Trello".format(command))
@@ -78,85 +80,90 @@ class Tello:
         return response
 
     # Send a command which controls the behavior of Tello
-    def send_action_command(self, command:str):
+    def send_action_command(self, command:str)-> None:
         
-        response = "max retries exceeded"
         for i in range(0, MAX_RETRY_COMMAND_COUNT):
             response = self.__try_send_control_command(command)
             lower_case_response = response.lower()
             if 'ok' in lower_case_response:
                 print("Tello says: {} after completing {}".format(lower_case_response,command))
                 return
-
             print("Command attempt #{} failed for command: '{}'".format(i, command))
 
         print("Max retries for command {} have exceeded".format(command))
 
 
-    def connect(self):
+    def connect(self)-> None:
          self.send_action_command('command')
 
     # Terminates the connection with the Drone.
-    def disconnect(self):
+    def disconnect(self)-> None:
         self.client_socket.close()
     
     # Drone auto- takes off.
-    def take_off(self):
+    def take_off(self)-> None:
         self.send_action_command('takeoff')
 
       # Lands the drone in the ground.
-    def land(self):
+    def land(self)-> None:
         self.send_action_command('land')
-
 
     # Moves the drone x cm's to the right.
     # "x" should be between 20 - 500 cm
-    def move_right(self,x):
+    def move_right(self,x)-> None:
         command = 'right ' + str(x)
         self.send_action_command(command)
 
     # Moves the drone x cm's to the left.
     # "x" should be between 20 - 500 cm.
-    def move_left(self,x):
+    def move_left(self,x)-> None:
         command = 'left ' + str(x)
         self.send_action_command(command)
 
-    def flip_back(self):
+    def flip_back(self)-> None:
         command = 'flip b'
+        self.send_action_command(command)
+
+    def flip_front(self)-> None:
+        command = 'flip f'
+        self.send_action_command(command)
+
+    def flip_right(self)-> None:
+        command = 'flip r'
+        self.send_action_command(command)
+
+    def flip_left(self)-> None:
+        command = 'flip l'
         self.send_action_command(command)
 
 
      # Moves the drone x cm's forward.
      # "x" should be between 20 - 500 cm.
-    def move_forward(self,x):
+    def move_forward(self,x)-> None:
         command = 'forward ' + str(x)
         self.send_action_command(command)
 
-    def move_back(self,x):
+    def move_back(self,x)-> None:
         command = 'back ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.log = self.client_socket.sendto(command, self.address)
+        self.send_action_command(command)
 
-    def move_up(self,x):
+    def move_up(self,x)-> None:
         command = 'up ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.log = self.client_socket.sendto(command, self.address)
+        self.send_action_command(command)
     
-    def move_down(self,x):
+    def move_down(self,x)-> None:
         command = 'down ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.log = self.client_socket.sendto(command, self.address)
+        self.send_action_command(command)
     
-    def move_left(self,x):
+    def move_left(self,x)-> None:
         command = 'left ' + str(x)
         self.send_action_command(command)
 
-    def move_right(self,x):
+    def move_right(self,x)-> None:
         command = 'right ' + str(x)
-        command = command.encode(encoding="utf-8") 
-        self.log = self.client_socket.sendto(command, self.address)
+        self.send_action_command(command)
 
-    def rotate(self,x):
+    def rotate(self,x)-> None:
         command = 'cw ' + str(x)
         self.send_action_command(command)
 
@@ -165,8 +172,7 @@ class Tello:
 
     def start_video_stream(self):
           command = 'streamon'
-          command = command.encode(encoding="utf-8") 
-          self.log = self.client_socket.sendto(command, self.address)
+          self.send_action_command(command)
 
 
     def control_manually(self):
